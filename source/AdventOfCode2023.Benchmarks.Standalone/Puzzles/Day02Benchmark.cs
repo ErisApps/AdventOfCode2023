@@ -64,7 +64,7 @@ public class Day02Benchmark
 			var currentNumber = c - '0';
 
 			c = span[++i];
-			while (char.IsDigit(c))
+			while (char.IsAsciiDigit(c))
 			{
 				currentNumber = currentNumber * 10 + (c - '0');
 				c = span[++i];
@@ -139,7 +139,7 @@ public class Day02Benchmark
 			var currentNumber = c - '0';
 
 			c = span[++i];
-			while (char.IsDigit(c))
+			while (char.IsAsciiDigit(c))
 			{
 				currentNumber = currentNumber * 10 + (c - '0');
 				c = span[++i];
