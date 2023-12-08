@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 
@@ -20,107 +18,44 @@ public class Day07Benchmark
 
 	[Benchmark]
 	[BenchmarkCategory(Constants.PART1)]
-	// ReSharper disable once CognitiveComplexity
 	public int Part1()
 	{
 		const int handLength = 5;
 
-		scoped Span<byte> alignedRawHand = stackalloc byte[8];
-		scoped Span<char> editableHandSpan = stackalloc char[5];
+		scoped Span<Hand> handsBuffer = stackalloc Hand[_input.Lines.Length];
+		var handsBufferSize = 0;
 
-		const int estimatedHandsBufferBucketSize = 250;
-
-		scoped Span<Hand> highCardHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var highCardHandsBufferSize = 0;
-
-		scoped Span<Hand> singlePairHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var singlePairHandsBufferSize = 0;
-
-		scoped Span<Hand> twoPairHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var twoPairHandsBufferSize = 0;
-
-		scoped Span<Hand> threeOfAKindHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var threeOfAKindHandsBufferSize = 0;
-
-		scoped Span<Hand> fullHouseHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var fullHouseHandsBufferSize = 0;
-
-		scoped Span<Hand> fourOfAKindHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var fourOfAKindHandsBufferSize = 0;
-
-		scoped Span<Hand> fiveOfAKindHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var fiveOfAKindHandsBufferSize = 0;
-
-		for (var i = 0; i < _input.Lines.Length; i++)
+		for (var i = 0; i < handsBuffer.Length; i++)
 		{
 			var inputLine = _input.Lines[i].AsSpan();
 			var handSlice = inputLine.Slice(0, handLength);
 
-			handSlice.CopyTo(editableHandSpan);
-			var handType = Part1_DetermineHandType(ref editableHandSpan);
-
-			for (var j = 0; j < handLength; j++)
-			{
-				alignedRawHand[handLength - j] = (byte) editableHandSpan[j];
-			}
-			var handPower = MemoryMarshal.Read<long>(alignedRawHand);
+			Part1_ParseHand(ref handSlice, out var handPower);
 
 			var bidSpan = ParseBid(inputLine.Slice(6));
 
-			switch (handType)
-			{
-				case HandType.HighCard:
-					InsertHandIntoBuffer(ref highCardHandsBuffer, ref highCardHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.OnePair:
-					InsertHandIntoBuffer(ref singlePairHandsBuffer, ref singlePairHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.TwoPairs:
-					InsertHandIntoBuffer(ref twoPairHandsBuffer, ref twoPairHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.ThreeOfAKind:
-					InsertHandIntoBuffer(ref threeOfAKindHandsBuffer, ref threeOfAKindHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.FullHouse:
-					InsertHandIntoBuffer(ref fullHouseHandsBuffer, ref fullHouseHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.FourOfAKind:
-					InsertHandIntoBuffer(ref fourOfAKindHandsBuffer, ref fourOfAKindHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.FiveOfAKind:
-					InsertHandIntoBuffer(ref fiveOfAKindHandsBuffer, ref fiveOfAKindHandsBufferSize, handPower, bidSpan);
-					break;
-				default:
-					throw new UnreachableException();
-			}
+			InsertHandIntoBuffer(ref handsBuffer, ref handsBufferSize, handPower, bidSpan);
 		}
 
 		var total = 0;
-		var offset = 1;
 
 		Comparison<Hand> handComparison = (x, y) => Math.Sign(x.HandPower - y.HandPower);
-
-		CombineHandBids(ref total, ref offset, ref highCardHandsBuffer, ref highCardHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref singlePairHandsBuffer, ref singlePairHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref twoPairHandsBuffer, ref twoPairHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref threeOfAKindHandsBuffer, ref threeOfAKindHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref fullHouseHandsBuffer, ref fullHouseHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref fourOfAKindHandsBuffer, ref fourOfAKindHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref fiveOfAKindHandsBuffer, ref fiveOfAKindHandsBufferSize, ref handComparison);
+		CombineHandBids(ref total, ref handsBuffer, ref handsBufferSize, ref handComparison);
 
 		return total;
 	}
 
 	// ReSharper disable once CognitiveComplexity
-	private static HandType Part1_DetermineHandType(ref Span<char> editableHandSpan)
+	private static void Part1_ParseHand(ref ReadOnlySpan<char> handSpan, out long handPower)
 	{
 		// 13 card types + max 5 different cards
 		// first section is used to count the card of each type and the later section is used for an insertion sort
 		scoped Span<short> cardCounts = stackalloc short[18];
 
+		handPower = 0L;
 		for (var i = 0; i < 5; i++)
 		{
-			ref var card = ref editableHandSpan[i];
+			var card = handSpan[i];
 
 			var cardIndex = card switch
 			{
@@ -132,7 +67,8 @@ public class Day07Benchmark
 				_ => card - '0' - 2
 			};
 
-			card = (char) cardIndex;
+			handPower <<= 8;
+			handPower += cardIndex;
 
 			cardCounts[cardIndex]++;
 		}
@@ -169,7 +105,7 @@ public class Day07Benchmark
 			cardCountsFound += currentCardCount;
 		}
 
-		return cardCounts[13] switch
+		var handType = cardCounts[13] switch
 		{
 			5 => HandType.FiveOfAKind,
 			4 => HandType.FourOfAKind,
@@ -177,123 +113,64 @@ public class Day07Benchmark
 			2 => cardCounts[14] == 2 ? HandType.TwoPairs : HandType.OnePair,
 			_ => HandType.HighCard
 		};
+
+		var handTypePower = (long) handType << 48;
+		handPower += handTypePower;
 	}
 
 	[Benchmark]
 	[BenchmarkCategory(Constants.PART2)]
-	// ReSharper disable once CognitiveComplexity
 	public int Part2()
 	{
 		const int handLength = 5;
 
-		scoped Span<byte> alignedRawHand = stackalloc byte[8];
-		scoped Span<char> editableHandSpan = stackalloc char[5];
+		scoped Span<Hand> handsBuffer = stackalloc Hand[_input.Lines.Length];
+		var handsBufferSize = 0;
 
-		const int estimatedHandsBufferBucketSize = 250;
-
-		scoped Span<Hand> highCardHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var highCardHandsBufferSize = 0;
-
-		scoped Span<Hand> singlePairHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var singlePairHandsBufferSize = 0;
-
-		scoped Span<Hand> twoPairHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var twoPairHandsBufferSize = 0;
-
-		scoped Span<Hand> threeOfAKindHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var threeOfAKindHandsBufferSize = 0;
-
-		scoped Span<Hand> fullHouseHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var fullHouseHandsBufferSize = 0;
-
-		scoped Span<Hand> fourOfAKindHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var fourOfAKindHandsBufferSize = 0;
-
-		scoped Span<Hand> fiveOfAKindHandsBuffer = stackalloc Hand[estimatedHandsBufferBucketSize];
-		var fiveOfAKindHandsBufferSize = 0;
-
-		for (var i = 0; i < _input.Lines.Length; i++)
+		for (var i = 0; i < handsBuffer.Length; i++)
 		{
 			var inputLine = _input.Lines[i].AsSpan();
 			var handSlice = inputLine.Slice(0, handLength);
 
-			handSlice.CopyTo(editableHandSpan);
-			var handType = Part2_DetermineHandType(ref editableHandSpan);
-
-			for (var j = 0; j < handLength; j++)
-			{
-				alignedRawHand[handLength - j] = (byte) editableHandSpan[j];
-			}
-			var handPower = MemoryMarshal.Read<long>(alignedRawHand);
+			Part2_ParseHand(ref handSlice, out var handPower);
 
 			var bidSpan = ParseBid(inputLine.Slice(6));
 
-			switch (handType)
-			{
-				case HandType.HighCard:
-					InsertHandIntoBuffer(ref highCardHandsBuffer, ref highCardHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.OnePair:
-					InsertHandIntoBuffer(ref singlePairHandsBuffer, ref singlePairHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.TwoPairs:
-					InsertHandIntoBuffer(ref twoPairHandsBuffer, ref twoPairHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.ThreeOfAKind:
-					InsertHandIntoBuffer(ref threeOfAKindHandsBuffer, ref threeOfAKindHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.FullHouse:
-					InsertHandIntoBuffer(ref fullHouseHandsBuffer, ref fullHouseHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.FourOfAKind:
-					InsertHandIntoBuffer(ref fourOfAKindHandsBuffer, ref fourOfAKindHandsBufferSize, handPower, bidSpan);
-					break;
-				case HandType.FiveOfAKind:
-					InsertHandIntoBuffer(ref fiveOfAKindHandsBuffer, ref fiveOfAKindHandsBufferSize, handPower, bidSpan);
-					break;
-				default:
-					throw new UnreachableException();
-			}
+			InsertHandIntoBuffer(ref handsBuffer, ref handsBufferSize, handPower, bidSpan);
 		}
 
 		var total = 0;
-		var offset = 1;
 
 		Comparison<Hand> handComparison = (x, y) => Math.Sign(x.HandPower - y.HandPower);
-
-		CombineHandBids(ref total, ref offset, ref highCardHandsBuffer, ref highCardHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref singlePairHandsBuffer, ref singlePairHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref twoPairHandsBuffer, ref twoPairHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref threeOfAKindHandsBuffer, ref threeOfAKindHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref fullHouseHandsBuffer, ref fullHouseHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref fourOfAKindHandsBuffer, ref fourOfAKindHandsBufferSize, ref handComparison);
-		CombineHandBids(ref total, ref offset, ref fiveOfAKindHandsBuffer, ref fiveOfAKindHandsBufferSize, ref handComparison);
+		CombineHandBids(ref total, ref handsBuffer, ref handsBufferSize, ref handComparison);
 
 		return total;
 	}
 
 	// ReSharper disable once CognitiveComplexity
-	private static HandType Part2_DetermineHandType(scoped ref Span<char> editableHandSpan)
+	private static void Part2_ParseHand(ref ReadOnlySpan<char> handSpan, out long handPower)
 	{
 		// 13 card types + max 5 different cards
 		// first section is used to count the card of each type and the later section is used for an insertion sort
 		scoped Span<short> cardCounts = stackalloc short[18];
 
+		handPower = 0L;
 		for (var i = 0; i < 5; i++)
 		{
-			ref var card = ref editableHandSpan[i];
+			var card = handSpan[i];
 
 			var cardIndex = card switch
 			{
-				'T' => 8,
-				'J' => 12,
-				'Q' => 9,
-				'K' => 10,
-				'A' => 11,
-				_ => card - '0' - 2
+				'T' => 9,
+				'J' => 0,
+				'Q' => 10,
+				'K' => 11,
+				'A' => 12,
+				_ => card - '0' - 1
 			};
 
-			card = (char) cardIndex;
+			handPower <<= 8;
+			handPower += cardIndex;
 
 			cardCounts[cardIndex]++;
 		}
@@ -301,8 +178,8 @@ public class Day07Benchmark
 		var secondSectionSize = 13; // Used for insertion sort
 		var cardCountsFound = 0; // Used as optimization for insertion sort
 
-		// Iterate over first section
-		for (var i = 0; i < 12 && cardCountsFound < 5 ; i++)
+		// Iterate over first section, but skip jokers as they will be added to the highest count later on
+		for (var i = 1; i < 13 && cardCountsFound < 5 ; i++)
 		{
 			var currentCardCount = cardCounts[i];
 			if (currentCardCount == 0)
@@ -330,9 +207,9 @@ public class Day07Benchmark
 		}
 
 		// Add jokers to highest card count
-		cardCounts[13] += cardCounts[12];
+		cardCounts[13] += cardCounts[0];
 
-		return cardCounts[13] switch
+		var handType = cardCounts[13] switch
 		{
 			5 => HandType.FiveOfAKind,
 			4 => HandType.FourOfAKind,
@@ -340,6 +217,9 @@ public class Day07Benchmark
 			2 => cardCounts[14] == 2 ? HandType.TwoPairs : HandType.OnePair,
 			_ => HandType.HighCard
 		};
+
+		var handTypePower = (long) handType << 48;
+		handPower += handTypePower;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -355,21 +235,20 @@ public class Day07Benchmark
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void InsertHandIntoBuffer(scoped ref Span<Hand> handsBuffer, scoped ref int handsBufferSize, long handPower, int bid)
+	private static void InsertHandIntoBuffer(ref Span<Hand> handsBuffer, ref int handsBufferSize, long handPower, int bid)
 	{
 		handsBuffer[handsBufferSize++] = new Hand(handPower, bid);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void CombineHandBids(scoped ref int total, scoped ref int offset, scoped ref Span<Hand> handsBuffer, scoped ref int handsBufferSize, scoped ref Comparison<Hand> handComparison)
+	private static void CombineHandBids(ref int total, ref Span<Hand> handsBuffer, ref int handsBufferSize, ref Comparison<Hand> handComparison)
 	{
 		handsBuffer.Slice(0, handsBufferSize).Sort(handComparison);
 
 		for (var i = 0; i < handsBufferSize; i++)
 		{
-			total += handsBuffer[i].Bid * (i + offset);
+			total += handsBuffer[i].Bid * (i + 1);
 		}
-		offset += handsBufferSize;
 	}
 
 	private readonly struct Hand
