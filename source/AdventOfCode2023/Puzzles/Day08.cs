@@ -37,26 +37,31 @@ public class Day08 : HappyPuzzleBase
 	{
 		var stepCounter = 0;
 		var currentNode = networkNodesBuffer[startNodeId];
-		while (true)
+		for (var i = 0; i < instructionSet.Length; i++)
 		{
-			for (var j = 0; j < instructionSet.Length; j++)
+			++stepCounter;
+			var nextNodeId = instructionSet[i] switch
 			{
-				++stepCounter;
-				var nextNodeId = instructionSet[j] switch
-				{
-					'L' => currentNode.NextLeft,
-					'R' => currentNode.NextRight,
-					_ => throw new UnreachableException()
-				};
+				'L' => currentNode.NextLeft,
+				'R' => currentNode.NextRight,
+				_ => throw new UnreachableException()
+			};
 
-				if (nextNodeId == targetNodeId)
-				{
-					return stepCounter;
-				}
+			if (nextNodeId == targetNodeId)
+			{
+				return stepCounter;
+			}
 
-				currentNode = networkNodesBuffer[nextNodeId];
+			currentNode = networkNodesBuffer[nextNodeId];
+
+			// Wrap around, seemingly cheaper than wrapping the for-loop in a while(true) loop
+			if (i == instructionSet.Length - 1)
+			{
+				i = -1;
 			}
 		}
+
+		throw new UnreachableException();
 	}
 
 	private readonly struct Part1Node
@@ -117,27 +122,34 @@ public class Day08 : HappyPuzzleBase
 	private static int Part2_CalculateStepsTillTargetNodeTillZEndingNode(scoped ref Span<Part2Node> networkNodesBuffer, scoped ReadOnlySpan<char> instructionSet, int startNodeId)
 	{
 		var stepCounter = 0;
+
 		var currentNode = networkNodesBuffer[startNodeId];
-		while (true)
+		for (var i = 0; i < instructionSet.Length; i++)
 		{
-			for (var j = 0; j < instructionSet.Length; j++)
+			var nextNodeId = instructionSet[i] switch
 			{
-				++stepCounter;
-				var nextNodeId = instructionSet[j] switch
-				{
-					'L' => currentNode.NextLeft,
-					'R' => currentNode.NextRight,
-					_ => throw new UnreachableException()
-				};
+				'L' => currentNode.NextLeft,
+				'R' => currentNode.NextRight,
+				_ => throw new UnreachableException()
+			};
 
-				currentNode = networkNodesBuffer[nextNodeId];
+			currentNode = networkNodesBuffer[nextNodeId];
 
-				if (currentNode.IsEndingNode)
-				{
-					return stepCounter;
-				}
+			if (currentNode.IsEndingNode)
+			{
+				stepCounter += i + 1;
+				return stepCounter;
+			}
+
+			// Wrap around, seemingly cheaper than wrapping the for-loop in a while(true) loop
+			if (i == instructionSet.Length - 1)
+			{
+				stepCounter += instructionSet.Length;
+				i = -1;
 			}
 		}
+
+		throw new UnreachableException();
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -186,6 +198,7 @@ public class Day08 : HappyPuzzleBase
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static int ParseBase26(scoped ReadOnlySpan<char> nodeId)
 	{
 		return (nodeId[0] - 'A') * 676 + (nodeId[1] - 'A') * 26 + (nodeId[2] - 'A'); // 676 is 26^2
