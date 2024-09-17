@@ -6,6 +6,8 @@ using BenchmarkDotNet.Running;
 
 var benchmarkCases = HappyPuzzleHelpers
 	.DiscoverPuzzles()
+	.TakeLast(4)
+	.Take(1)
 	.Select(x => typeof(HappyPuzzleBaseBenchmark<>).MakeGenericType(x))
 	.ToArray();
 

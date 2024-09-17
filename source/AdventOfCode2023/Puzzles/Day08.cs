@@ -113,10 +113,95 @@ public class Day08 : HappyPuzzleBase
 		{
 			var startNodeId = routeStartDescriptorsBuffer[i];
 
+			Part2_ReduceNetwork(ref networkNodesBuffer, startNodeId);
+
 			routeStepCountsBuffer[i] = Part2_CalculateStepsTillTargetNodeTillZEndingNode(ref networkNodesBuffer, instructionSet, startNodeId);
 		}
 
 		return Part2_LeastCommonMultiple(ref routeStepCountsBuffer);
+	}
+
+	// Apply BFS to reduce network for future loop iterations
+	private static void Part2_ReduceNetwork(ref Span<Part2Node> networkNodesBuffer, int startNodeId)
+	{
+		var currentNode = networkNodesBuffer[startNodeId];
+
+		scoped Span<Part2ReducerNode> reducedNetworkNodesBuffer = stackalloc Part2ReducerNode[350];
+		var reducedNetworkNodesBufferSize = 0;
+
+		scoped Span<Part2Node> previousWaveBuffer = stackalloc Part2Node[20];
+		var previousWaveBufferSize = 0;
+
+		scoped Span<Part2Node> currentWaveBuffer = stackalloc Part2Node[20];
+		var currentWaveBufferSize = 1;
+
+		scoped Span<Part2Node> nextWaveBuffer = stackalloc Part2Node[20];
+		var nextWaveBufferSize = 0;
+
+		while (true)
+		{
+			var nextLeftNode = networkNodesBuffer[currentNode.NextLeft];
+			var nextRightNode = networkNodesBuffer[currentNode.NextRight];
+
+			if (nextLeftNode.IsEndingNode && nextRightNode.IsEndingNode)
+			{
+				break;
+			}
+
+			if (nextLeftNode.IsEndingNode)
+			{
+				currentNode = nextRightNode;
+				continue;
+			}
+
+			if (nextRightNode.IsEndingNode)
+			{
+				currentNode = nextLeftNode;
+				continue;
+			}
+
+			if (nextLeftNode.NextLeft == nextRightNode.NextLeft)
+			{
+				currentNode = nextLeftNode;
+				continue;
+			}
+
+			if (nextLeftNode.NextRight == nextRightNode.NextRight)
+			{
+				currentNode = nextLeftNode;
+				continue;
+			}
+
+			if (nextLeftNode.NextLeft == nextRightNode.NextRight)
+			{
+				currentNode = nextLeftNode;
+				continue;
+			}
+
+			if (nextLeftNode.NextRight == nextRightNode.NextLeft)
+			{
+				currentNode = nextLeftNode;
+				continue;
+			}
+
+			throw new UnreachableException();
+		}
+
+		networkNodesBuffer[startNodeId] = currentNode;
+	}
+
+	private struct Part2ReducerNode
+	{
+		public readonly int OriginalNodeId;
+		public int NextLeft;
+		public int NextRight;
+
+		public Part2ReducerNode(int originalNodeId, int nextLeft, int nextRight)
+		{
+			OriginalNodeId = originalNodeId;
+			NextLeft = nextLeft;
+			NextRight = nextRight;
+		}
 	}
 
 	private static int Part2_CalculateStepsTillTargetNodeTillZEndingNode(scoped ref Span<Part2Node> networkNodesBuffer, scoped ReadOnlySpan<char> instructionSet, int startNodeId)

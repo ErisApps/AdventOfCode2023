@@ -1,16 +1,28 @@
 using System.Diagnostics;
-using System.Text;
-using AdventOfCode2023.Common;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 
-namespace AdventOfCode2023.Puzzles;
+namespace AdventOfCode2023.Benchmarks.Standalone.Puzzles;
 
-public class Day10 : HappyPuzzleBase
+[MemoryDiagnoser(true)]
+[CategoriesColumn, AllStatisticsColumn, BaselineColumn, MinColumn, Q1Column, MeanColumn, Q3Column, MaxColumn, MedianColumn]
+[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
+public class Day10Benchmark
 {
-	public override object SolvePart1(Input input)
-	{
-		var mapData = input.Text.AsSpan();
+	private readonly Input _input;
 
-		var sideLength = input.Lines[0].Length;
+	public Day10Benchmark()
+	{
+		_input = Helpers.GetInput("Day10.txt");
+	}
+
+	[Benchmark]
+	[BenchmarkCategory(Constants.PART1)]
+	public int Part1()
+	{
+		var mapData = _input.Text.AsSpan();
+
+		var sideLength = _input.Lines[0].Length;
 
 		FindStartingPosition(ref mapData, sideLength, out var startingNodeIndex, out var startingDirection);
 
@@ -110,12 +122,14 @@ public class Day10 : HappyPuzzleBase
 		}
 	}
 
-	public override object SolvePart2(Input input)
+	[Benchmark]
+	[BenchmarkCategory(Constants.PART2)]
+	public int Part2()
 	{
-		var mapData = input.Text.AsSpan();
+		var mapData = _input.Text.AsSpan();
 
-		var length = input.Lines.Length;
-		var width = input.Lines[0].Length;
+		var length = _input.Lines.Length;
+		var width = _input.Lines[0].Length;
 
 		FindStartingPosition(ref mapData, width, out var startingNodeIndex, out var startingDirection);
 
@@ -239,8 +253,6 @@ public class Day10 : HappyPuzzleBase
 	// ReSharper disable once CognitiveComplexity
 	private static int Part2_CountEnclosedTiles(scoped ref Span<Direction> verticalityBuffer, int rawSideLength)
 	{
-		// PrintVerticalityBuffer(ref verticalityBuffer, rawSideLength);
-
 		var enclosedTiles = 0;
 
 		var currentDirection = Direction.Undefined;
@@ -267,36 +279,6 @@ public class Day10 : HappyPuzzleBase
 
 		return enclosedTiles;
 	}
-
-	private static void PrintVerticalityBuffer(ref Span<Direction> verticalityBuffer, int rawSideLength)
-	{
-		var sb = new StringBuilder();
-		for (var i = 0; i < verticalityBuffer.Length - rawSideLength; i++)
-		{
-			if (i % (rawSideLength) == 0)
-			{
-				sb.AppendLine();
-			}
-
-			switch (verticalityBuffer[i])
-			{
-				case Direction.Up:
-					sb.Append('\u2191');
-					break;
-				case Direction.Down:
-					sb.Append('\u2193');
-					break;
-				case Direction.Undefined:
-					sb.Append('_');
-					break;
-				default:
-					throw new UnreachableException();
-			}
-		}
-
-		Console.WriteLine(sb);
-	}
-
 
 	// ReSharper disable once CognitiveComplexity
 	private static void FindStartingPosition(ref ReadOnlySpan<char> mapData, int sideLength, out int startingNodeIndex, out Direction startingDirection)
